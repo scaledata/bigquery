@@ -2,10 +2,11 @@ package bigquery
 
 import (
 	"database/sql/driver"
-	"gorm.io/driver/bigquery/adaptor"
+	"reflect"
+
+	"github.com/scaledata/bigquery/adaptor"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"reflect"
 )
 
 type bigQuerySchemaAdaptor struct {

@@ -1,10 +1,12 @@
 package driver
 
 import (
-	"cloud.google.com/go/bigquery"
 	"errors"
-	"gorm.io/driver/bigquery/adaptor"
 	"io"
+
+	"cloud.google.com/go/bigquery"
+
+	"github.com/scaledata/bigquery/adaptor"
 )
 
 type bigQuerySource interface {
