@@ -66,7 +66,7 @@ func configFromUri(uri string) (*bigQueryConfig, error) {
 		return nil, fmt.Errorf("invalid prefix, expected bigquery:// got: %s", uri)
 	}
 
-	if u.Path == "" {
+	if u.Hostname() == "" {
 		return nil, invalidConnectionStringError(uri)
 	}
 
@@ -75,9 +75,15 @@ func configFromUri(uri string) (*bigQueryConfig, error) {
 		return nil, invalidConnectionStringError(uri)
 	}
 
+	// Check if dataset was provided
+	datasetName := ""
+	if len(fields) >= 1 {
+		datasetName = fields[len(fields)-1]
+	}
+
 	config := &bigQueryConfig{
 		projectID:   u.Hostname(),
-		dataSet:     fields[len(fields)-1],
+		dataSet:     datasetName,
 		scopes:      getScopes(u.Query()),
 		endpoint:    u.Query().Get("endpoint"),
 		disableAuth: u.Query().Get("disable_auth") == "true",
