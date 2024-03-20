@@ -36,7 +36,10 @@ func (b bigQueryDriver) Open(uri string) (driver.Conn, error) {
 
 	ctx := context.Background()
 
-	opts := []option.ClientOption{option.WithScopes(config.scopes...)}
+	opts := []option.ClientOption{}
+	if len(config.scopes) > 0 {
+		opts = append(opts, option.WithScopes(config.scopes...))
+	}
 	if config.endpoint != "" {
 		opts = append(opts, option.WithEndpoint(config.endpoint))
 	}
