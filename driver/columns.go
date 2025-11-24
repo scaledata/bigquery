@@ -3,8 +3,10 @@ package driver
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"time"
 
 	"cloud.google.com/go/bigquery"
+	"cloud.google.com/go/civil"
 
 	"github.com/scaledata/bigquery/adaptor"
 )
@@ -42,12 +44,47 @@ func (c bigQueryReroutedColumn) MarshalJSON() ([]byte, error) {
 }
 
 type bigQueryColumn struct {
-	Name    string
-	Schema  bigquery.Schema
-	Adaptor adaptor.SchemaColumnAdaptor
+	Name      string
+	Schema    bigquery.Schema
+	Adaptor   adaptor.SchemaColumnAdaptor
+	FieldType bigquery.FieldType // Add field type information
 }
 
 func (column bigQueryColumn) ConvertValue(value bigquery.Value) (driver.Value, error) {
+	// Handle DATE type conversion from civil.Date to time.Time
+	if column.FieldType == bigquery.DateFieldType {
+		if value != nil {
+			if civilDate, ok := value.(civil.Date); ok {
+				converted := time.Date(civilDate.Year, civilDate.Month, civilDate.Day, 0, 0, 0, 0, time.UTC)
+				return converted, nil
+			}
+		}
+	}
+
+	// Handle DATETIME type conversion from civil.DateTime to time.Time
+	if column.FieldType == bigquery.DateTimeFieldType {
+		if value != nil {
+			if civilDateTime, ok := value.(civil.DateTime); ok {
+				converted := time.Date(civilDateTime.Date.Year, civilDateTime.Date.Month, civilDateTime.Date.Day,
+					civilDateTime.Time.Hour, civilDateTime.Time.Minute, civilDateTime.Time.Second,
+					civilDateTime.Time.Nanosecond, time.UTC)
+				return converted, nil
+			}
+		}
+	}
+
+	// Handle TIME type conversion from civil.Time to time.Time
+	if column.FieldType == bigquery.TimeFieldType {
+		if value != nil {
+			if civilTime, ok := value.(civil.Time); ok {
+				// Convert civil.Time to time.Time (today's date with the specified time in UTC)
+				now := time.Now().UTC()
+				converted := time.Date(now.Year(), now.Month(), now.Day(),
+					civilTime.Hour, civilTime.Minute, civilTime.Second, civilTime.Nanosecond, time.UTC)
+				return converted, nil
+			}
+		}
+	}
 
 	if len(column.Schema) == 0 {
 		return value, nil
@@ -86,9 +123,10 @@ func createBigQuerySchema(schema bigquery.Schema, schemaAdaptor adaptor.SchemaAd
 
 		names = append(names, name)
 		columns = append(columns, bigQueryColumn{
-			Name:    name,
-			Schema:  column.Schema,
-			Adaptor: columnAdaptor,
+			Name:      name,
+			Schema:    column.Schema,
+			Adaptor:   columnAdaptor,
+			FieldType: column.Type, // Pass the field type information
 		})
 	}
 	return &bigQueryColumns{
