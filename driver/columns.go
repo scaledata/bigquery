@@ -11,6 +11,9 @@ import (
 	"github.com/scaledata/bigquery/adaptor"
 )
 
+// BigQueryTimeLayout represents the TIME format: HH:MM:SS[.SSSSSS]
+const BigQueryTimeLayout = "15:04:05.000000"
+
 type bigQuerySchema interface {
 	ColumnNames() []string
 	ConvertColumnValue(index int, value bigquery.Value) (driver.Value, error)
@@ -73,15 +76,14 @@ func (column bigQueryColumn) ConvertValue(value bigquery.Value) (driver.Value, e
 		}
 	}
 
-	// Handle TIME type conversion from civil.Time to time.Time
+	// Handle TIME type conversion from civil.Time to string
 	if column.FieldType == bigquery.TimeFieldType {
 		if value != nil {
 			if civilTime, ok := value.(civil.Time); ok {
-				// Convert civil.Time to time.Time (today's date with the specified time in UTC)
-				now := time.Now().UTC()
-				converted := time.Date(now.Year(), now.Month(), now.Day(),
-					civilTime.Hour, civilTime.Minute, civilTime.Second, civilTime.Nanosecond, time.UTC)
-				return converted, nil
+				// Convert civil.Time to string in BigQuery TIME format: HH:MM:SS.SSSSSS
+				// Create a temporary time.Time to use the Format method
+				tempTime := time.Date(2000, 1, 1, civilTime.Hour, civilTime.Minute, civilTime.Second, civilTime.Nanosecond, time.UTC)
+				return tempTime.Format(BigQueryTimeLayout), nil
 			}
 		}
 	}
