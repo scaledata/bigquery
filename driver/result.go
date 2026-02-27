@@ -16,3 +16,9 @@ func (result *bigQueryResult) LastInsertId() (int64, error) {
 func (result *bigQueryResult) RowsAffected() (int64, error) {
 	return int64(result.rowIterator.TotalRows), nil
 }
+
+// SourceRowIterator returns the underlying
+// BigQuery RowIterator.
+func (result *bigQueryResult) SourceRowIterator() *bigquery.RowIterator {
+	return result.rowIterator
+}

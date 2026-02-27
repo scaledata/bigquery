@@ -11,7 +11,7 @@ import (
 	"google.golang.org/api/option"
 )
 
-type bigQueryDriver struct {
+type BigQueryDriver struct {
 }
 
 type bigQueryConfig struct {
@@ -23,7 +23,7 @@ type bigQueryConfig struct {
 	disableAuth bool
 }
 
-func (b bigQueryDriver) Open(uri string) (driver.Conn, error) {
+func (b BigQueryDriver) Open(uri string) (driver.Conn, error) {
 
 	if uri == "scanner" {
 		return &scannerConnection{}, nil
