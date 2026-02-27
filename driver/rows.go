@@ -4,6 +4,8 @@ import (
 	"database/sql/driver"
 	"io"
 
+	"cloud.google.com/go/bigquery"
+
 	"github.com/scaledata/bigquery/adaptor"
 	"google.golang.org/api/iterator"
 )
@@ -27,6 +29,18 @@ func (rows *bigQueryRows) Columns() []string {
 
 func (rows *bigQueryRows) Close() error {
 	return nil
+}
+
+// SourceRowIterator returns the underlying BigQuery
+// RowIterator if the source is backed by one.
+// Returns nil otherwise.
+func (rows *bigQueryRows) SourceRowIterator() *bigquery.RowIterator {
+	src, ok :=
+		rows.source.(*bigQueryRowIteratorSource)
+	if !ok {
+		return nil
+	}
+	return src.iterator
 }
 
 func (rows *bigQueryRows) Next(dest []driver.Value) error {
