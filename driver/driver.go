@@ -6,9 +6,20 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/bigquery"
 	"google.golang.org/api/option"
+)
+
+const (
+	// accountIDParam is the DSN query parameter
+	// name for the BigQuery job label account ID.
+	accountIDParam = "account_id"
+
+	// defaultAccountID is used when the account_id
+	// parameter is not set in the DSN.
+	defaultAccountID = "UNSPECIFIED"
 )
 
 type BigQueryDriver struct {
@@ -22,6 +33,14 @@ type bigQueryConfig struct {
 	endpoint        string
 	disableAuth     bool
 	credentialsFile string
+	accountID  string
+	// jobServerTimeout is the server-side timeout for
+	// BQ jobs. It applies only to job execution time,
+	// not queue/pending time. Set via the
+	// "job_server_timeout" DSN query parameter (e.g.,
+	// ?job_server_timeout=5m). BQ floors minimum
+	// to 1s.
+	jobServerTimeout time.Duration
 }
 
 func (b BigQueryDriver) Open(uri string) (driver.Conn, error) {
@@ -88,6 +107,11 @@ func configFromUri(uri string) (*bigQueryConfig, error) {
 		datasetName = fields[len(fields)-1]
 	}
 
+	accountID := u.Query().Get(accountIDParam)
+	if accountID == "" {
+		accountID = defaultAccountID
+	}
+
 	config := &bigQueryConfig{
 		projectID:       u.Hostname(),
 		dataSet:         datasetName,
@@ -95,6 +119,18 @@ func configFromUri(uri string) (*bigQueryConfig, error) {
 		endpoint:        u.Query().Get("endpoint"),
 		disableAuth:     u.Query().Get("disable_auth") == "true",
 		credentialsFile: u.Query().Get("credentials_file"),
+		accountID:   accountID,
+	}
+
+	if v := u.Query().Get("job_server_timeout"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"bq driver: invalid job_server_timeout %q: %v",
+				v, err,
+			)
+		}
+		config.jobServerTimeout = d
 	}
 
 	if len(fields) == 2 {
