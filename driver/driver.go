@@ -33,7 +33,8 @@ type bigQueryConfig struct {
 	endpoint        string
 	disableAuth     bool
 	credentialsFile string
-	accountID  string
+	accountID       string
+	reservation     string
 	// jobServerTimeout is the server-side timeout for
 	// BQ jobs. It applies only to job execution time,
 	// not queue/pending time. Set via the
@@ -120,7 +121,8 @@ func configFromUri(uri string) (*bigQueryConfig, error) {
 		endpoint:        u.Query().Get("endpoint"),
 		disableAuth:     u.Query().Get("disable_auth") == "true",
 		credentialsFile: u.Query().Get("credentials_file"),
-		accountID:   accountID,
+		accountID:       accountID,
+		reservation:     u.Query().Get("reservation"),
 	}
 
 	if v := u.Query().Get("job_server_timeout"); v != "" {

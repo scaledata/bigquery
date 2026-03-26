@@ -171,6 +171,10 @@ func (statement bigQueryStatement) buildQuery(ctx context.Context, args []driver
 		return nil, err
 	}
 
+	if statement.connection.config.reservation != "" {
+		query.Reservation = statement.connection.config.reservation
+	}
+
 	return query, err
 }
 
