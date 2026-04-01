@@ -15,12 +15,13 @@ type BigQueryDriver struct {
 }
 
 type bigQueryConfig struct {
-	projectID   string
-	location    string
-	dataSet     string
-	scopes      []string
-	endpoint    string
-	disableAuth bool
+	projectID       string
+	location        string
+	dataSet         string
+	scopes          []string
+	endpoint        string
+	disableAuth     bool
+	credentialsFile string
 }
 
 func (b BigQueryDriver) Open(uri string) (driver.Conn, error) {
@@ -45,6 +46,9 @@ func (b BigQueryDriver) Open(uri string) (driver.Conn, error) {
 	}
 	if config.disableAuth {
 		opts = append(opts, option.WithoutAuthentication())
+	}
+	if config.credentialsFile != "" {
+		opts = append(opts, option.WithCredentialsFile(config.credentialsFile))
 	}
 
 	client, err := bigquery.NewClient(ctx, config.projectID, opts...)
@@ -85,11 +89,12 @@ func configFromUri(uri string) (*bigQueryConfig, error) {
 	}
 
 	config := &bigQueryConfig{
-		projectID:   u.Hostname(),
-		dataSet:     datasetName,
-		scopes:      getScopes(u.Query()),
-		endpoint:    u.Query().Get("endpoint"),
-		disableAuth: u.Query().Get("disable_auth") == "true",
+		projectID:       u.Hostname(),
+		dataSet:         datasetName,
+		scopes:          getScopes(u.Query()),
+		endpoint:        u.Query().Get("endpoint"),
+		disableAuth:     u.Query().Get("disable_auth") == "true",
+		credentialsFile: u.Query().Get("credentials_file"),
 	}
 
 	if len(fields) == 2 {
