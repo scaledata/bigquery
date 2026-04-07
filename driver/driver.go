@@ -19,7 +19,7 @@ const (
 
 	// defaultAccountID is used when the account_id
 	// parameter is not set in the DSN.
-	defaultAccountID = "UNSPECIFIED"
+	defaultAccountID = "unspecified"
 )
 
 type BigQueryDriver struct {
@@ -111,6 +111,7 @@ func configFromUri(uri string) (*bigQueryConfig, error) {
 	if accountID == "" {
 		accountID = defaultAccountID
 	}
+	accountID = sanitizeLabelValue(accountID)
 
 	config := &bigQueryConfig{
 		projectID:       u.Hostname(),
@@ -150,4 +151,24 @@ func getScopes(query url.Values) []string {
 
 func invalidConnectionStringError(uri string) error {
 	return fmt.Errorf("invalid connection string: %s", uri)
+}
+
+// sanitizeLabelValue converts a string into a valid GCP label value.
+// GCP labels must contain only lowercase letters, digits, hyphens,
+// and underscores, and be at most 63 characters.
+func sanitizeLabelValue(s string) string {
+	s = strings.ToLower(s)
+	var b strings.Builder
+	for _, c := range s {
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_' {
+			b.WriteRune(c)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+	s = b.String()
+	if len(s) > 63 {
+		s = s[:63]
+	}
+	return s
 }
