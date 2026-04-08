@@ -81,7 +81,11 @@ func (connection *bigQueryConnection) Begin() (driver.Tx, error) {
 }
 
 func (connection *bigQueryConnection) query(query string) (*bigquery.Query, error) {
-	return connection.client.Query(query), nil
+	bqQuery := connection.client.Query(query)
+	if len(connection.config.labels) > 0 {
+		bqQuery.Labels = connection.config.labels
+	}
+	return bqQuery, nil
 }
 
 func (connection *bigQueryConnection) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
