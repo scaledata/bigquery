@@ -158,9 +158,6 @@ func (statement bigQueryStatement) buildQuery(ctx context.Context, args []driver
 		return nil, err
 	}
 	query.DefaultDatasetID = statement.connection.config.dataSet
-	query.Labels = map[string]string{
-		accountIDParam: statement.connection.config.accountID,
-	}
 	query.JobTimeout = effectiveJobTimeout(
 		ctx,
 		statement.connection.config.jobServerTimeout,

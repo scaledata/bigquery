@@ -12,15 +12,10 @@ import (
 	"google.golang.org/api/option"
 )
 
-const (
-	// accountIDParam is the DSN query parameter
-	// name for the BigQuery job label account ID.
-	accountIDParam = "account_id"
-
-	// defaultAccountID is used when the account_id
-	// parameter is not set in the DSN.
-	defaultAccountID = "unspecified"
-)
+// labelsParam is the DSN query parameter that carries
+// BQ job labels as a nested query string
+// (e.g., ?labels=account_id%3Dabc%26service%3Dmy-svc).
+const labelsParam = "labels"
 
 type BigQueryDriver struct {
 }
@@ -33,7 +28,6 @@ type bigQueryConfig struct {
 	endpoint        string
 	disableAuth     bool
 	credentialsFile string
-	accountID       string
 	reservation     string
 	// jobServerTimeout is the server-side timeout for
 	// BQ jobs. It applies only to job execution time,
@@ -42,6 +36,11 @@ type bigQueryConfig struct {
 	// ?job_server_timeout=5m). BQ floors minimum
 	// to 1s.
 	jobServerTimeout time.Duration
+	// labels are applied to every BigQuery job created
+	// by this connection. They are parsed from the
+	// "labels" DSN query parameter, which encodes
+	// key-value pairs as a nested query string.
+	labels map[string]string
 }
 
 func (b BigQueryDriver) Open(uri string) (driver.Conn, error) {
@@ -108,12 +107,6 @@ func configFromUri(uri string) (*bigQueryConfig, error) {
 		datasetName = fields[len(fields)-1]
 	}
 
-	accountID := u.Query().Get(accountIDParam)
-	if accountID == "" {
-		accountID = defaultAccountID
-	}
-	accountID = sanitizeLabelValue(accountID)
-
 	config := &bigQueryConfig{
 		projectID:       u.Hostname(),
 		dataSet:         datasetName,
@@ -121,7 +114,6 @@ func configFromUri(uri string) (*bigQueryConfig, error) {
 		endpoint:        u.Query().Get("endpoint"),
 		disableAuth:     u.Query().Get("disable_auth") == "true",
 		credentialsFile: u.Query().Get("credentials_file"),
-		accountID:       accountID,
 		reservation:     u.Query().Get("reservation"),
 	}
 
@@ -135,6 +127,8 @@ func configFromUri(uri string) (*bigQueryConfig, error) {
 		}
 		config.jobServerTimeout = d
 	}
+
+	config.labels = parseLabels(u.Query().Get(labelsParam))
 
 	if len(fields) == 2 {
 		config.location = fields[0]
@@ -155,10 +149,31 @@ func invalidConnectionStringError(uri string) error {
 	return fmt.Errorf("invalid connection string: %s", uri)
 }
 
-// sanitizeLabelValue converts a string into a valid GCP label value.
-// GCP labels must contain only lowercase letters, digits, hyphens,
-// and underscores, and be at most 63 characters.
-func sanitizeLabelValue(s string) string {
+// parseLabels decodes the "labels" query parameter.
+// The value is a nested query string produced by
+// url.Values.Encode (e.g., "account_id=abc&service=my-svc").
+func parseLabels(raw string) map[string]string {
+	labels := make(map[string]string)
+	if raw == "" {
+		return labels
+	}
+	parsed, err := url.ParseQuery(raw)
+	if err != nil {
+		return labels
+	}
+	for k, vs := range parsed {
+		if len(vs) > 0 {
+			labels[sanitizeLabelKey(k)] = sanitizeLabel(vs[0])
+		}
+	}
+	return labels
+}
+
+// sanitizeLabel converts a string into a valid GCP label
+// value. GCP label values must contain only lowercase
+// letters, digits, hyphens, and underscores, and be at
+// most 63 characters.
+func sanitizeLabel(s string) string {
 	s = strings.ToLower(s)
 	var b strings.Builder
 	for _, c := range s {
@@ -171,6 +186,20 @@ func sanitizeLabelValue(s string) string {
 	s = b.String()
 	if len(s) > 63 {
 		s = s[:63]
+	}
+	return s
+}
+
+// sanitizeLabelKey sanitizes a GCP label key. Keys have
+// the same character restrictions as values but must also
+// start with a lowercase letter.
+func sanitizeLabelKey(s string) string {
+	s = sanitizeLabel(s)
+	if len(s) == 0 || s[0] < 'a' || s[0] > 'z' {
+		s = "k" + s
+		if len(s) > 63 {
+			s = s[:63]
+		}
 	}
 	return s
 }
