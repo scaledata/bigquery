@@ -74,6 +74,14 @@ func (b BigQueryDriver) Open(uri string) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+	// If the DSN included a location segment
+	// (bigquery://project/location/dataset), use it as the
+	// client's default location. This routes job submissions
+	// (including INFORMATION_SCHEMA queries) to the correct
+	// region instead of the BQ Go client's US default.
+	if config.location != "" {
+		client.Location = config.location
+	}
 
 	return &bigQueryConnection{
 		ctx:    ctx,
