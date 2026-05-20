@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/bigquery"
+	"cloud.google.com/go/civil"
 	"github.com/sirupsen/logrus"
 
 	"github.com/scaledata/bigquery/adaptor"
@@ -252,6 +253,14 @@ func (statement bigQueryStatement) buildParameters(args []driver.Value) ([]bigqu
 }
 
 func buildParameter(arg driver.Value, parameters []bigquery.QueryParameter) []bigquery.QueryParameter {
+	// Convert DateTime back to civil.DateTime so the BigQuery
+	// client maps it to DATETIME parameter type (not TIMESTAMP).
+	if dt, ok := arg.(DateTime); ok {
+		return append(parameters, bigquery.QueryParameter{
+			Value: civil.DateTimeOf(dt.Time),
+		})
+	}
+
 	namedValue, ok := arg.(driver.NamedValue)
 	if ok {
 		return buildParameterFromNamedValue(namedValue, parameters)
@@ -267,14 +276,21 @@ func buildParameter(arg driver.Value, parameters []bigquery.QueryParameter) []bi
 func buildParameterFromNamedValue(namedValue driver.NamedValue, parameters []bigquery.QueryParameter) []bigquery.QueryParameter {
 	logrus.Debugf("-param:%s=%s", namedValue.Name, namedValue.Value)
 
+	// Convert DateTime back to civil.DateTime for DATETIME
+	// parameter type.
+	value := namedValue.Value
+	if dt, ok := value.(DateTime); ok {
+		value = civil.DateTimeOf(dt.Time)
+	}
+
 	if namedValue.Name == "" {
 		return append(parameters, bigquery.QueryParameter{
-			Value: namedValue.Value,
+			Value: value,
 		})
 	} else {
 		return append(parameters, bigquery.QueryParameter{
 			Name:  namedValue.Name,
-			Value: namedValue.Value,
+			Value: value,
 		})
 	}
 }

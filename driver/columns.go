@@ -14,6 +14,21 @@ import (
 // BigQueryTimeLayout represents the TIME format: HH:MM:SS[.SSSSSS]
 const BigQueryTimeLayout = "15:04:05.000000"
 
+// DateTime wraps time.Time to preserve BigQuery DATETIME
+// (timezone-naive) semantics. When passed as a query parameter,
+// the driver converts it back to civil.DateTime so BigQuery maps
+// it to DATETIME, not TIMESTAMP.
+type DateTime struct {
+	time.Time
+}
+
+// Value implements driver.Valuer. Returns the underlying time.Time
+// so that database/sql.Scan can transparently assign DateTime to
+// *time.Time targets.
+func (dt DateTime) Value() (driver.Value, error) {
+	return dt.Time, nil
+}
+
 type bigQuerySchema interface {
 	ColumnNames() []string
 	ConvertColumnValue(index int, value bigquery.Value) (driver.Value, error)
@@ -64,14 +79,24 @@ func (column bigQueryColumn) ConvertValue(value bigquery.Value) (driver.Value, e
 		}
 	}
 
-	// Handle DATETIME type conversion from civil.DateTime to time.Time
+	// Handle DATETIME type conversion from civil.DateTime to
+	// DateTime wrapper. The wrapper preserves time.Time semantics
+	// for consumers while enabling correct round-trip back to
+	// BigQuery DATETIME via buildParameter.
 	if column.FieldType == bigquery.DateTimeFieldType {
 		if value != nil {
 			if civilDateTime, ok := value.(civil.DateTime); ok {
-				converted := time.Date(civilDateTime.Date.Year, civilDateTime.Date.Month, civilDateTime.Date.Day,
-					civilDateTime.Time.Hour, civilDateTime.Time.Minute, civilDateTime.Time.Second,
-					civilDateTime.Time.Nanosecond, time.UTC)
-				return converted, nil
+				t := time.Date(
+					civilDateTime.Date.Year,
+					civilDateTime.Date.Month,
+					civilDateTime.Date.Day,
+					civilDateTime.Time.Hour,
+					civilDateTime.Time.Minute,
+					civilDateTime.Time.Second,
+					civilDateTime.Time.Nanosecond,
+					time.UTC,
+				)
+				return DateTime{t}, nil
 			}
 		}
 	}
