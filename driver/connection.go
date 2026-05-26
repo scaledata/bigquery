@@ -1,11 +1,37 @@
 package driver
 
 import (
-	"cloud.google.com/go/bigquery"
 	"context"
 	"database/sql/driver"
 	"fmt"
+
+	"cloud.google.com/go/bigquery"
 )
+
+// DatasetProvider is an interface that provides access to the underlying
+// BigQuery dataset. This interface can be used to access the BigQuery client
+// for operations that are not supported by the standard database/sql interface,
+// such as updating table clustering.
+//
+// Usage with database/sql:
+//
+//	conn, err := db.Conn(ctx)
+//	if err != nil {
+//	    return err
+//	}
+//	defer conn.Close()
+//
+//	err = conn.Raw(func(driverConn interface{}) error {
+//	    if provider, ok := driverConn.(driver.DatasetProvider); ok {
+//	        dataset := provider.GetDataset()
+//	        // do operations on the dataset
+//	    }
+//	    return errors.New("connection does not implement DatasetProvider")
+//	})
+type DatasetProvider interface {
+	// GetDataset returns the BigQuery dataset for the current connection.
+	GetDataset() *bigquery.Dataset
+}
 
 type bigQueryConnection struct {
 	ctx     context.Context
@@ -15,6 +41,9 @@ type bigQueryConnection struct {
 	bad     bool
 	dataset *bigquery.Dataset
 }
+
+// Ensure bigQueryConnection implements DatasetProvider
+var _ DatasetProvider = (*bigQueryConnection)(nil)
 
 func (connection *bigQueryConnection) GetDataset() *bigquery.Dataset {
 	if connection.dataset != nil {
