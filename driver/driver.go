@@ -41,6 +41,16 @@ type bigQueryConfig struct {
 	// "labels" DSN query parameter, which encodes
 	// key-value pairs as a nested query string.
 	labels map[string]string
+	// pollJobStatus makes the driver wait for a job by
+	// polling its status (jobs.get) and return the job's
+	// error as soon as it finishes, instead of waiting
+	// through jobs.getQueryResults. The BigQuery client
+	// retries a job-level jobRateLimitExceeded on
+	// getQueryResults until the context ends, so a job
+	// that fails on a quota never returns its error to a
+	// caller with no deadline. Set via the
+	// "poll_job_status=true" DSN query parameter.
+	pollJobStatus bool
 }
 
 func (b BigQueryDriver) Open(uri string) (driver.Conn, error) {
@@ -123,6 +133,7 @@ func configFromUri(uri string) (*bigQueryConfig, error) {
 		disableAuth:     u.Query().Get("disable_auth") == "true",
 		credentialsFile: u.Query().Get("credentials_file"),
 		reservation:     u.Query().Get("reservation"),
+		pollJobStatus:   u.Query().Get("poll_job_status") == "true",
 	}
 
 	if v := u.Query().Get("job_server_timeout"); v != "" {

@@ -49,7 +49,9 @@ func (statement *bigQueryStatement) ExecContext(ctx context.Context, args []driv
 		return nil, err
 	}
 
-	rowIterator, err := runQuery(ctx, query)
+	rowIterator, err := runQuery(
+		ctx, query, statement.connection.config.pollJobStatus,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +97,7 @@ func (statement *bigQueryStatement) QueryContext(ctx context.Context, args []dri
 		return nil, err
 	}
 
-	rowIterator, err := runQuery(ctx, query)
+	rowIterator, err := runQuery(ctx, query, false)
 	if err != nil {
 		return nil, err
 	}
@@ -194,16 +196,26 @@ func effectiveJobTimeout(
 }
 
 // runQuery submits a BQ query via Run and blocks
-// until results are ready via Read. If Read fails
-// and the caller's context is done, the job is
-// cancelled server-side.
+// until results are ready via Read. When
+// pollJobStatus is set, it first waits for the job
+// through waitForJobDone, so a failed job returns its
+// error at once rather than through Read's polling.
+// If waiting fails and the caller's context is done,
+// the job is cancelled server-side.
 func runQuery(
 	ctx context.Context,
 	query *bigquery.Query,
+	pollJobStatus bool,
 ) (*bigquery.RowIterator, error) {
 	job, err := query.Run(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if pollJobStatus {
+		if err := waitForJobDone(ctx, job); err != nil {
+			cancelJobIfContextDone(ctx, job)
+			return nil, err
+		}
 	}
 	rowIterator, err := job.Read(ctx)
 	if err != nil {
@@ -211,6 +223,46 @@ func runQuery(
 		return nil, err
 	}
 	return rowIterator, nil
+}
+
+const (
+	jobStatusPollInitial = 100 * time.Millisecond
+	jobStatusPollMax     = 2 * time.Second
+)
+
+// waitForJobDone polls the job's status until the
+// job finishes and returns the job's error, if any.
+// Job.Wait cannot be used: for query jobs it polls
+// jobs.getQueryResults, which the BigQuery client
+// retries on a job-level jobRateLimitExceeded until
+// the context ends. jobs.get reports a failed job as
+// a successful response carrying the job's error, so
+// a job that fails on a quota returns immediately.
+func waitForJobDone(
+	ctx context.Context,
+	job *bigquery.Job,
+) error {
+	pause := jobStatusPollInitial
+	for {
+		status, err := job.Status(ctx)
+		if err != nil {
+			return err
+		}
+		if status.Done() {
+			if err := status.Err(); err != nil {
+				return err
+			}
+			return nil
+		}
+		timer := time.NewTimer(pause)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+		pause = min(pause*2, jobStatusPollMax)
+	}
 }
 
 // cancelJobIfContextDone fires an async BQ job

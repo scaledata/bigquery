@@ -50,6 +50,17 @@ func TestConfigFromUri(t *testing.T) {
 			},
 		},
 		{
+			name: "URI with poll_job_status",
+			uri:  "bigquery://my-project/US/my-dataset?poll_job_status=true",
+			expected: &bigQueryConfig{
+				projectID:     "my-project",
+				location:      "US",
+				dataSet:       "my-dataset",
+				scopes:        []string{},
+				pollJobStatus: true,
+			},
+		},
+		{
 			name:        "invalid scheme",
 			uri:         "mysql://my-project/US/my-dataset",
 			expectError: true,
@@ -76,6 +87,7 @@ func TestConfigFromUri(t *testing.T) {
 			assert.Equal(t, tt.expected.endpoint, config.endpoint)
 			assert.Equal(t, tt.expected.disableAuth, config.disableAuth)
 			assert.Equal(t, tt.expected.reservation, config.reservation)
+			assert.Equal(t, tt.expected.pollJobStatus, config.pollJobStatus)
 		})
 	}
 }
